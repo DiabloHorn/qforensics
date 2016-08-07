@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 """
     DiabloHorn http://diablohorn.wordpress.com
-    multiprocessing filehashing
+    multiprocessing single line output for files
+    - file hashes
+    - file stat output
+    - file mimetype
+    - full filepath
 """
 import sys
 import hashlib
