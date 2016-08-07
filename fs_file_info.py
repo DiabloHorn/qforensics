@@ -73,13 +73,24 @@ def hashfile(fileloc, algorithms):
 def entropy_bytecount(fileloc):
     byte_counts = [0] * 256
     
-    for chunk in chunked_reading(fileloc):
-        for bytenum in range(256):
-            ctr = 0
-            for b in chunk:
-                if ord(b) == bytenum:
-                    ctr += 1
-            byte_counts[bytenum] = byte_counts[bytenum] + ctr
+    try:
+        for chunk in chunked_reading(fileloc):
+            for bytenum in range(256):
+                ctr = 0
+                for b in chunk:
+                    if ord(b) == bytenum:
+                        ctr += 1
+                byte_counts[bytenum] = byte_counts[bytenum] + ctr
+    except IOError, e:
+        with GLOBAL_LOCK:
+            print >> sys.stderr, e
+            sys.stderr.flush()
+    except Exception, e:
+        with GLOBAL_LOCK:
+            print >> sys.stderr, e
+            sys.stderr.flush()
+            raise e
+                            
     return byte_counts
 
 #http://stackoverflow.com/a/990646    
@@ -88,15 +99,16 @@ def entropy_shannon(fileloc):
     total = os.stat(fileloc).st_size
     byte_counts = entropy_bytecount(fileloc)
     
-    for count in byte_counts:
-        # If no bytes of this value were seen in the value, it doesn't affect
-        # the entropy of the file.
-        if count == 0:
-            continue
-        # p is the probability of seeing this byte in the file, as a floating-
-        # point number
-        p = 1.0 * count / total
-        entropy -= p * math.log(p, 2)
+    if byte_counts:
+        for count in byte_counts:
+            # If no bytes of this value were seen in the value, it doesn't affect
+            # the entropy of the file.
+            if count == 0:
+                continue
+            # p is the probability of seeing this byte in the file, as a floating-
+            # point number
+            p = 1.0 * count / total
+            entropy -= p * math.log(p, 2)
     return entropy  
     
 def statfile(fileloc):
@@ -124,10 +136,10 @@ def processfile(filelist_q, algorithms):
                 return
             fileloc = filelist_q.get(timeout=1)
             hashes = hashfile(fileloc, algorithms)
-            meta = statfile(fileloc)
-            filemagic = magic.from_file(fileloc,mime=True)
-            entropy = entropy_shannon(fileloc)
             if hashes:
+                meta = statfile(fileloc)
+                filemagic = magic.from_file(fileloc,mime=True)
+                entropy = entropy_shannon(fileloc)            
                 with GLOBAL_LOCK:
                     print '{0} {1} {2} {3} {4}'.format(' '.join(hashes), ' '.join(meta), filemagic, entropy, fileloc)
                     #comment above and uncomment below if you want to run without file identification
