@@ -2,15 +2,20 @@
 """
     DiabloHorn http://diablohorn.wordpress.com
     multiprocessing single line output for files
-    - file hashes
-    - file stat output
-    - file mimetype
-    - full filepath
+        - file hashes
+        - file stat output
+        - file mimetype
+        - file entropy 
+        - full filepath
+    References:
+        http://code.activestate.com/recipes/577476-shannon-entropy-calculation/#c3
+        http://stackoverflow.com/a/990646
 """
 import sys
 import hashlib
 import os
 import stat
+import math
 import multiprocessing
 from multiprocessing import Process, Queue
 
@@ -35,9 +40,12 @@ def get_cpucount():
     
 def chunked_reading(fileloc):
     with open(fileloc, 'rb') as f:
-        chunk = f.read(8192*4)
-        if chunk != '':
-            yield chunk
+        while True:
+            chunk = f.read(8192*4)
+            if chunk != '':
+                yield chunk
+            else:
+                break
 
 def hashfile(fileloc, algorithms):
     hashworker = list()
@@ -61,6 +69,36 @@ def hashfile(fileloc, algorithms):
             sys.stderr.flush()
             raise e
 
+#http://code.activestate.com/recipes/577476-shannon-entropy-calculation/#c3
+def entropy_bytecount(fileloc):
+    byte_counts = [0] * 256
+    
+    for chunk in chunked_reading(fileloc):
+        for bytenum in range(256):
+            ctr = 0
+            for b in chunk:
+                if ord(b) == bytenum:
+                    ctr += 1
+            byte_counts[bytenum] = byte_counts[bytenum] + ctr
+    return byte_counts
+
+#http://stackoverflow.com/a/990646    
+def entropy_shannon(fileloc):
+    entropy = 0
+    total = os.stat(fileloc).st_size
+    byte_counts = entropy_bytecount(fileloc)
+    
+    for count in byte_counts:
+        # If no bytes of this value were seen in the value, it doesn't affect
+        # the entropy of the file.
+        if count == 0:
+            continue
+        # p is the probability of seeing this byte in the file, as a floating-
+        # point number
+        p = 1.0 * count / total
+        entropy -= p * math.log(p, 2)
+    return entropy  
+    
 def statfile(fileloc):
     """
     posix.stat_result(st_mode=33188, st_ino=479, st_dev=26L, st_nlink=1, st_uid=501, st_gid=20, st_size=124, 
@@ -87,11 +125,13 @@ def processfile(filelist_q, algorithms):
             fileloc = filelist_q.get(timeout=1)
             hashes = hashfile(fileloc, algorithms)
             meta = statfile(fileloc)
+            filemagic = magic.from_file(fileloc,mime=True)
+            entropy = entropy_shannon(fileloc)
             if hashes:
                 with GLOBAL_LOCK:
-                    print '{0} {1} {2} {3}'.format(' '.join(hashes), ' '.join(meta), magic.from_file(fileloc,mime=True), fileloc)
+                    print '{0} {1} {2} {3} {4}'.format(' '.join(hashes), ' '.join(meta), filemagic, entropy, fileloc)
                     #comment above and uncomment below if you want to run without file identification
-                    #print '{0} {1} {2}'.format(' '.join(hashes), ' '.join(meta), fileloc)
+                    #print '{0} {1} {2} {3}'.format(' '.join(hashes), ' '.join(meta), entropy, fileloc)
                     sys.stdout.flush()
         except Exception, e:
             with GLOBAL_LOCK:
