@@ -10,6 +10,13 @@ import stat
 import multiprocessing
 from multiprocessing import Process, Queue
 
+#sudo pip install python-magic
+try:
+    import magic
+except:
+    print "sudo pip install python-magic"
+    sys.exit()
+
 GLOBAL_LOCK = multiprocessing.Lock()
 DEFAULT_HASH_ALGO = 'md5'
 
@@ -78,7 +85,9 @@ def processfile(filelist_q, algorithms):
             meta = statfile(fileloc)
             if hashes:
                 with GLOBAL_LOCK:
-                    print '{0} {1} {2}'.format(' '.join(hashes),' '.join(meta), fileloc)
+                    print '{0} {1} {2} {3}'.format(' '.join(hashes), ' '.join(meta), magic.from_file(fileloc,mime=True), fileloc)
+                    #comment above and uncomment below if you want to run without file identification
+                    #print '{0} {1} {2}'.format(' '.join(hashes), ' '.join(meta), fileloc)
                     sys.stdout.flush()
         except Exception, e:
             with GLOBAL_LOCK:
@@ -98,6 +107,7 @@ def get_args(myargs):
     if len(myargs) < 2:
         print '{0} {1} {2}'.format(myargs[0], '<location>', '[hash_algo hash_algo hash_algo]')
         print 'Available algorithms: {0}'.format(' '.join(hashlib.algorithms))
+        print 'Use ctrl-\ if you need a forced stop'
         sys.exit()
     elif len(myargs) == 2:
         return [myargs[1], [DEFAULT_HASH_ALGO]]
