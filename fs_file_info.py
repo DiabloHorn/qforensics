@@ -6,6 +6,7 @@
 import sys
 import hashlib
 import os
+import stat
 import multiprocessing
 from multiprocessing import Process, Queue
 
@@ -49,6 +50,24 @@ def hashfile(fileloc, algorithms):
             sys.stderr.flush()
             raise e
 
+def statfile(fileloc):
+    """
+    posix.stat_result(st_mode=33188, st_ino=479, st_dev=26L, st_nlink=1, st_uid=501, st_gid=20, st_size=124, 
+    st_atime=1470523937, st_mtime=1470523937, st_ctime=1470523937)
+    """
+    retvals = list()
+    statoutput = os.stat(fileloc)
+    retvals.append(str(oct(stat.S_IMODE(statoutput.st_mode))))
+    retvals.append(str(statoutput.st_ino))
+    retvals.append(str(statoutput.st_dev))
+    retvals.append(str(statoutput.st_uid))
+    retvals.append(str(statoutput.st_gid))
+    retvals.append(str(statoutput.st_size))
+    retvals.append(str(statoutput.st_atime))
+    retvals.append(str(statoutput.st_mtime))
+    retvals.append(str(statoutput.st_ctime))
+    return retvals
+    
 def processfile(filelist_q, algorithms):
     while True:
         try:
@@ -56,9 +75,10 @@ def processfile(filelist_q, algorithms):
                 return
             fileloc = filelist_q.get(timeout=1)
             hashes = hashfile(fileloc, algorithms)
+            meta = statfile(fileloc)
             if hashes:
                 with GLOBAL_LOCK:
-                    print '{0} {1}'.format(' '.join(hashes), fileloc)
+                    print '{0} {1} {2}'.format(' '.join(hashes),' '.join(meta), fileloc)
                     sys.stdout.flush()
         except Exception, e:
             with GLOBAL_LOCK:
