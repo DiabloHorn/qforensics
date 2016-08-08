@@ -18,6 +18,7 @@ import stat
 import math
 import multiprocessing
 from multiprocessing import Process, Queue
+import logging
 
 #sudo pip install python-magic
 #if you still get errors, make sure you installed the correct lib
@@ -137,17 +138,20 @@ def statfile(fileloc):
     return retvals
     
 def processfile(filelist_q, algorithms):
+    chunked_operations = file_chunked_operations(algorithms)
     while True:
         try:
             if filelist_q.empty():
+                with GLOBAL_LOCK:
+                    print "empty queue"
+                    sys.stdout.flush()                
                 return
             fileloc = filelist_q.get(timeout=1)
             #removeme
             with GLOBAL_LOCK:
                 print "working on %s" % fileloc
                 sys.stdout.flush()
-            meta = statfile(fileloc)
-            chunked_operations = file_chunked_operations(algorithms)
+            meta = statfile(fileloc)            
             chunked_operations.doall(fileloc, float(meta[5]))
             hashes = chunked_operations.gethashes()  
             entropy = chunked_operations.getentropy()
@@ -158,10 +162,14 @@ def processfile(filelist_q, algorithms):
                 #print '{0} {1} {2} {3}'.format(' '.join(hashes), ' '.join(meta), entropy, fileloc)
                 sys.stdout.flush()
         except IOError, e:
-            with GLOBAL_LOCK:
-                print >> sys.stderr, e
-                sys.stderr.flush()  
-                sys.exit()
+            if e.errno == 13:
+                with GLOBAL_LOCK:           
+                    print >> sys.stderr, e
+                    sys.stderr.flush()
+            else:
+                with GLOBAL_LOCK:
+                    print >> sys.stderr, e
+                    sys.exit()
     return  
                
 def create_workers(filelist_q, algorithms, amount=get_cpucount()):
@@ -184,6 +192,7 @@ def get_args(myargs):
         return [myargs[1], myargs[2:]]
         
 if __name__ == "__main__":
+    multiprocessing.log_to_stderr(logging.DEBUG)
     args = get_args(sys.argv)
     filelist_q = Queue()
     for root, dirs, files in os.walk(args[0]):
