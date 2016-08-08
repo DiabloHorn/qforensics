@@ -20,6 +20,8 @@ import multiprocessing
 from multiprocessing import Process, Queue
 
 #sudo pip install python-magic
+#if you still get errors, make sure you installed the correct lib
+#there are multiple magic libs out there :(
 try:
     import magic
 except:
@@ -28,6 +30,84 @@ except:
 
 GLOBAL_LOCK = multiprocessing.Lock()
 DEFAULT_HASH_ALGO = 'md5'
+#make sure it remains compatible with libmagic HOWMANY (1024*256 + SLOP)
+CHUNKSIZE = 1024*512
+
+class file_chunked_operations:
+    def __init__(self, algorithms):
+        self.hashworker = list()
+        self.results = list()
+        self.algorithms = algorithms
+        self.byte_counts = [0] * 256
+        self.entropy = 0
+        
+        for algo in self.algorithms:            
+            self.hashworker.append(hashlib.new(algo))
+    
+    def doall(self, fileloc, filesize):
+        self.byte_counts = [0] * 256
+        self.fileloc = fileloc
+        self.results = list()
+        self.entropy = 0
+        self.magic = '-'
+          
+        for ictr, i in enumerate(self.chunked_reading()):
+            if ictr == 0:
+                self.magic = magic.from_buffer(i)
+                
+            self.hashfile_update(i)
+            self.entropy_bytecount(i)
+            
+        self.hashfile_final()
+        self.entropy_shannon(filesize)                                       
+    
+    def gethashes(self):
+        return self.results
+    
+    def getentropy(self):
+        return self.entropy
+    
+    def getmagic(self):
+        return self.magic
+                    
+    def chunked_reading(self):
+        with open(self.fileloc, 'rb') as f:
+            while True:
+                chunk = f.read(CHUNKSIZE)
+                if chunk != '':
+                    yield chunk
+                else:
+                    break
+    
+    def hashfile_update(self, filechunk):
+        for hworker in self.hashworker:
+            hworker.update(filechunk)             
+                    
+    def hashfile_final(self):
+        for hworker in self.hashworker:
+            self.results.append(hworker.hexdigest())                    
+
+    #http://code.activestate.com/recipes/577476-shannon-entropy-calculation/#c3
+    def entropy_bytecount(self, filechunk):    
+        for bytenum in range(256):
+            ctr = 0
+            for b in filechunk:
+                if ord(b) == bytenum:
+                    ctr += 1
+            self.byte_counts[bytenum] = self.byte_counts[bytenum] + ctr
+
+    #http://stackoverflow.com/a/990646    
+    def entropy_shannon(self, filesize):
+        if self.byte_counts:
+            for count in self.byte_counts:
+                # If no bytes of this value were seen in the value, it doesn't affect
+                # the entropy of the file.
+                if count == 0:
+                    continue
+                # p is the probability of seeing this byte in the file, as a floating-
+                # point number
+                p = 1.0 * count / filesize
+                self.entropy -= p * math.log(p, 2)
 
 def get_cpucount():
     count = 1
@@ -36,80 +116,7 @@ def get_cpucount():
     except Exception, e:
         print >> sys.stderr, e
         return count
-    return count
-    
-def chunked_reading(fileloc):
-    with open(fileloc, 'rb') as f:
-        while True:
-            chunk = f.read(8192*4)
-            if chunk != '':
-                yield chunk
-            else:
-                break
-
-def hashfile(fileloc, algorithms):
-    hashworker = list()
-    results = list()
-    for algo in algorithms:            
-        hashworker.append(hashlib.new(algo))   
-    try:
-        for i in chunked_reading(fileloc):
-            for hworker in hashworker:
-                hworker.update(i)
-        for hworker in hashworker:
-            results.append(hworker.hexdigest())    
-        return results        
-    except IOError, e:
-        with GLOBAL_LOCK:
-            print >> sys.stderr, e
-            sys.stderr.flush()
-    except Exception, e:
-        with GLOBAL_LOCK:
-            print >> sys.stderr, e
-            sys.stderr.flush()
-            raise e
-
-#http://code.activestate.com/recipes/577476-shannon-entropy-calculation/#c3
-def entropy_bytecount(fileloc):
-    byte_counts = [0] * 256
-    
-    try:
-        for chunk in chunked_reading(fileloc):
-            for bytenum in range(256):
-                ctr = 0
-                for b in chunk:
-                    if ord(b) == bytenum:
-                        ctr += 1
-                byte_counts[bytenum] = byte_counts[bytenum] + ctr
-    except IOError, e:
-        with GLOBAL_LOCK:
-            print >> sys.stderr, e
-            sys.stderr.flush()
-    except Exception, e:
-        with GLOBAL_LOCK:
-            print >> sys.stderr, e
-            sys.stderr.flush()
-            raise e
-                            
-    return byte_counts
-
-#http://stackoverflow.com/a/990646    
-def entropy_shannon(fileloc):
-    entropy = 0
-    total = os.stat(fileloc).st_size
-    byte_counts = entropy_bytecount(fileloc)
-    
-    if byte_counts:
-        for count in byte_counts:
-            # If no bytes of this value were seen in the value, it doesn't affect
-            # the entropy of the file.
-            if count == 0:
-                continue
-            # p is the probability of seeing this byte in the file, as a floating-
-            # point number
-            p = 1.0 * count / total
-            entropy -= p * math.log(p, 2)
-    return entropy  
+    return count    
     
 def statfile(fileloc):
     """
@@ -135,21 +142,27 @@ def processfile(filelist_q, algorithms):
             if filelist_q.empty():
                 return
             fileloc = filelist_q.get(timeout=1)
-            hashes = hashfile(fileloc, algorithms)
-            if hashes:
-                meta = statfile(fileloc)
-                filemagic = magic.from_file(fileloc,mime=True)
-                entropy = entropy_shannon(fileloc)            
-                with GLOBAL_LOCK:
-                    print '{0} {1} {2} {3} {4}'.format(' '.join(hashes), ' '.join(meta), filemagic, entropy, fileloc)
-                    #comment above and uncomment below if you want to run without file identification
-                    #print '{0} {1} {2} {3}'.format(' '.join(hashes), ' '.join(meta), entropy, fileloc)
-                    sys.stdout.flush()
-        except Exception, e:
+            #removeme
+            with GLOBAL_LOCK:
+                print "working on %s" % fileloc
+                sys.stdout.flush()
+            meta = statfile(fileloc)
+            chunked_operations = file_chunked_operations(algorithms)
+            chunked_operations.doall(fileloc, float(meta[5]))
+            hashes = chunked_operations.gethashes()  
+            entropy = chunked_operations.getentropy()
+            filemagic = chunked_operations.getmagic()          
+            with GLOBAL_LOCK:
+                print '{0} {1} {2} {3} {4}'.format(' '.join(hashes), ' '.join(meta), filemagic, entropy, fileloc)
+                #comment above and uncomment below if you want to run without file identification
+                #print '{0} {1} {2} {3}'.format(' '.join(hashes), ' '.join(meta), entropy, fileloc)
+                sys.stdout.flush()
+        except IOError, e:
             with GLOBAL_LOCK:
                 print >> sys.stderr, e
-                sys.stderr.flush()
-                sys.exit()     
+                sys.stderr.flush()  
+                sys.exit()
+    return  
                
 def create_workers(filelist_q, algorithms, amount=get_cpucount()):
     workers = list()
@@ -183,6 +196,7 @@ if __name__ == "__main__":
                 with GLOBAL_LOCK:
                     print >> sys.stderr, e
                     sys.stderr.flush()
+                    sys.exit()
     created_workers = create_workers(filelist_q, args[1])
     for worker in created_workers:
         worker.join()
