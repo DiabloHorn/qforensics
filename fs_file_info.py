@@ -32,7 +32,7 @@ except:
 GLOBAL_LOCK = multiprocessing.Lock()
 DEFAULT_HASH_ALGO = 'md5'
 #make sure it remains compatible with libmagic HOWMANY (1024*256 + SLOP)
-CHUNKSIZE = 1024*512
+CHUNKSIZE = 1024*1024
 
 class file_chunked_operations:
     def __init__(self, algorithms):
@@ -84,21 +84,17 @@ class file_chunked_operations:
         for hworker in self.hashworker:
             hworker.update(filechunk)             
                     
-    def hashfile_final(self):
+    def hashfile_final(self):    
         for hworker in self.hashworker:
-            self.results.append(hworker.hexdigest())                    
+            self.results.append(hworker.hexdigest())                     
 
     #http://code.activestate.com/recipes/577476-shannon-entropy-calculation/#c3
-    def entropy_bytecount(self, filechunk):    
-        for bytenum in range(256):
-            ctr = 0
-            for b in filechunk:
-                if ord(b) == bytenum:
-                    ctr += 1
-            self.byte_counts[bytenum] = self.byte_counts[bytenum] + ctr
-
+    def entropy_bytecount(self, filechunk):        
+        for b in filechunk:
+            self.byte_counts[ord(b)] += 1
+            
     #http://stackoverflow.com/a/990646    
-    def entropy_shannon(self, filesize):
+    def entropy_shannon(self, filesize):     
         if self.byte_counts:
             for count in self.byte_counts:
                 # If no bytes of this value were seen in the value, it doesn't affect
@@ -108,7 +104,7 @@ class file_chunked_operations:
                 # p is the probability of seeing this byte in the file, as a floating-
                 # point number
                 p = 1.0 * count / filesize
-                self.entropy -= p * math.log(p, 2)
+                self.entropy -= p * math.log(p, 2) 
 
 def get_cpucount():
     count = 1
@@ -143,16 +139,12 @@ def processfile(filelist_q, algorithms):
         try:
             if filelist_q.empty():
                 with GLOBAL_LOCK:
-                    print "empty queue"
-                    sys.stdout.flush()                
+                    print >> sys.stderr, "empty queue"
+                    sys.stderr.flush()                
                 return
             fileloc = filelist_q.get(timeout=1)
-            #removeme
-            with GLOBAL_LOCK:
-                print "working on %s" % fileloc
-                sys.stdout.flush()
-            meta = statfile(fileloc)            
-            chunked_operations.doall(fileloc, float(meta[5]))
+            meta = statfile(fileloc)                        
+            chunked_operations.doall(fileloc, float(meta[5]))           
             hashes = chunked_operations.gethashes()  
             entropy = chunked_operations.getentropy()
             filemagic = chunked_operations.getmagic()          
