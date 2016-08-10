@@ -17,8 +17,10 @@ import os
 import stat
 import math
 import multiprocessing
+from Queue import Empty
 from multiprocessing import Process, Queue
 import logging
+import csv
 
 #sudo pip install python-magic
 #if you still get errors, make sure you installed the correct lib
@@ -54,7 +56,7 @@ class file_chunked_operations:
           
         for ictr, i in enumerate(self.chunked_reading()):
             if ictr == 0:
-                self.magic = magic.from_buffer(i)
+                self.magic = magic.from_buffer(i) #comment if no filemagic available
                 
             self.hashfile_update(i)
             self.entropy_bytecount(i)
@@ -66,10 +68,10 @@ class file_chunked_operations:
         return self.results
     
     def getentropy(self):
-        return self.entropy
+        return ['entropy', self.entropy]
     
     def getmagic(self):
-        return self.magic
+        return ['type', self.magic]
                     
     def chunked_reading(self):
         with open(self.fileloc, 'rb') as f:
@@ -86,7 +88,7 @@ class file_chunked_operations:
                     
     def hashfile_final(self):    
         for hworker in self.hashworker:
-            self.results.append(hworker.hexdigest())                     
+            self.results.append([hworker.name, hworker.hexdigest()])
 
     #http://code.activestate.com/recipes/577476-shannon-entropy-calculation/#c3
     def entropy_bytecount(self, filechunk):        
@@ -116,43 +118,48 @@ def get_cpucount():
     return count    
     
 def statfile(fileloc):
-    """
-    posix.stat_result(st_mode=33188, st_ino=479, st_dev=26L, st_nlink=1, st_uid=501, st_gid=20, st_size=124, 
-    st_atime=1470523937, st_mtime=1470523937, st_ctime=1470523937)
-    """
     retvals = list()
     statoutput = os.stat(fileloc)
-    retvals.append(str(oct(stat.S_IMODE(statoutput.st_mode))))
-    retvals.append(str(statoutput.st_ino))
-    retvals.append(str(statoutput.st_dev))
-    retvals.append(str(statoutput.st_uid))
-    retvals.append(str(statoutput.st_gid))
-    retvals.append(str(statoutput.st_size))
-    retvals.append(str(statoutput.st_atime))
-    retvals.append(str(statoutput.st_mtime))
-    retvals.append(str(statoutput.st_ctime))
+    retvals.append(['permissions',str(oct(stat.S_IMODE(statoutput.st_mode)))])
+    retvals.append(['inode',str(statoutput.st_ino)])
+    retvals.append(['device_id',str(statoutput.st_dev)])
+    retvals.append(['uid',str(statoutput.st_uid)])
+    retvals.append(['gid',str(statoutput.st_gid)])
+    retvals.append(['size',str(statoutput.st_size)])
+    retvals.append(['atime',str(statoutput.st_atime)])
+    retvals.append(['mtime',str(statoutput.st_mtime)])
+    retvals.append(['ctime',str(statoutput.st_ctime)])
     return retvals
     
-def processfile(filelist_q, algorithms):
+def processfile(filelist_q, output_q, algorithms):
     chunked_operations = file_chunked_operations(algorithms)
+
     while True:
         try:
-            if filelist_q.empty():
-                with GLOBAL_LOCK:
-                    print >> sys.stderr, "empty queue"
-                    sys.stderr.flush()                
-                return
             fileloc = filelist_q.get(timeout=1)
+            if fileloc is None:
+                with GLOBAL_LOCK:
+                    print >> sys.stderr, "None sentinel"
+                    sys.stderr.flush()
+                    filelist_q.put(None)
+                return
+
             meta = statfile(fileloc)                        
-            chunked_operations.doall(fileloc, float(meta[5]))           
+            chunked_operations.doall(fileloc, float(meta[5][1]))
             hashes = chunked_operations.gethashes()  
             entropy = chunked_operations.getentropy()
-            filemagic = chunked_operations.getmagic()          
+            filemagic = chunked_operations.getmagic() #comment if no filemagic available
+            output = list()
+            output.extend(hashes)
+            output.extend(meta)
+            output.append(entropy)
+            output.append(filemagic) #comment if no filemagic available
+            output.append(['path',fileloc])
+            output_q.put(output)
+        except Empty:
             with GLOBAL_LOCK:
-                print '{0} {1} {2} {3} {4}'.format(' '.join(hashes), ' '.join(meta), filemagic, entropy, fileloc)
-                #comment above and uncomment below if you want to run without file identification
-                #print '{0} {1} {2} {3}'.format(' '.join(hashes), ' '.join(meta), entropy, fileloc)
-                sys.stdout.flush()
+                print >> sys.stderr, "queue empty"
+                sys.stderr.flush()
         except IOError, e:
             if e.errno == 13:
                 with GLOBAL_LOCK:           
@@ -164,13 +171,66 @@ def processfile(filelist_q, algorithms):
                     sys.exit()
     return  
                
-def create_workers(filelist_q, algorithms, amount=get_cpucount()):
+def create_workers(filelist_q, output_q, algorithms, amount=get_cpucount()):
     workers = list()
-    for i in range(amount):
-        p = Process(target=processfile, args=(filelist_q, algorithms))
+    for ictr, i in enumerate(range(amount)):
+        procname = "processfile.%s" % ictr
+        p = Process(target=processfile, name=procname, args=(filelist_q, output_q, algorithms))
         p.start()
         workers.append(p)
     return workers                  
+
+def walktree_populate_q(filelist_q, treestart):
+    for root, dirs, files in os.walk(treestart):
+        for f in files:
+            fullpath = os.path.join(root,f)
+            try:
+                if os.path.isfile(fullpath) and not os.path.islink(fullpath):
+                    filelist_q.put(fullpath)
+            except Exception, e:
+                with GLOBAL_LOCK:
+                    print >> sys.stderr, e
+                    sys.stderr.flush()
+                    sys.exit()
+    filelist_q.put(None)
+
+def queue_printer(output_q):
+    csvstdout = csv.writer(sys.stdout, quoting=csv.QUOTE_ALL)
+    printheader = True
+
+    while True:
+        header = list()
+        body = list()
+        try:
+            msg = output_q.get(timeout=1)
+            if msg is None:
+                with GLOBAL_LOCK:
+                    print >> sys.stderr, "empty printer queue"
+                    sys.stderr.flush()
+                return
+
+            for i in msg:
+                header.append(i[0])
+                body.append(i[1])
+
+            if printheader:
+                csvstdout.writerow(header)
+                sys.stdout.flush()
+                printheader = False
+            csvstdout.writerow(body)
+            sys.stdout.flush()
+        except Empty:
+            pass
+        except Exception, e:
+            with GLOBAL_LOCK:
+                print >> sys.stderr, e
+                sys.stderr.flush()
+                sys.exit()
+    return
+
+def readstdin_populate_q(filelist_q, stdin):
+    for line in stdin:
+        filelist_q.put(line.strip())
 
 def get_args(myargs):
     if len(myargs) < 2:
@@ -182,22 +242,22 @@ def get_args(myargs):
         return [myargs[1], [DEFAULT_HASH_ALGO]]
     else:
         return [myargs[1], myargs[2:]]
-        
+
 if __name__ == "__main__":
     multiprocessing.log_to_stderr(logging.DEBUG)
     args = get_args(sys.argv)
-    filelist_q = Queue()
-    for root, dirs, files in os.walk(args[0]):
-        for f in files:
-            fullpath = os.path.join(root,f)
-            try:
-                if os.path.isfile(fullpath) and not os.path.islink(fullpath):
-                    filelist_q.put(fullpath) 
-            except Exception, e:
-                with GLOBAL_LOCK:
-                    print >> sys.stderr, e
-                    sys.stderr.flush()
-                    sys.exit()
-    created_workers = create_workers(filelist_q, args[1])
+    filelist_q = Queue(0)
+    output_q = Queue(0)
+
+    if args[0] == '-':
+        readstdin_populate_q(filelist_q, sys.stdin)
+    else:
+        walktree_populate_q(filelist_q, args[0])
+
+    created_workers = create_workers(filelist_q, output_q, args[1])
+    output_p = Process(target=queue_printer, name='output_p', args=(output_q,))
+    output_p.start()
     for worker in created_workers:
         worker.join()
+    output_q.put(None)
+    output_p.join()
