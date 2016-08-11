@@ -263,12 +263,13 @@ if __name__ == "__main__":
     filelist_q = Queue(0)
     output_q = Queue(0)
 
+    created_workers = create_workers(filelist_q, output_q, args[1])
+    
     if args[0] == '-':
         readstdin_populate_q(filelist_q, sys.stdin)
     else:
         walktree_populate_q(filelist_q, args[0])
-
-    created_workers = create_workers(filelist_q, output_q, args[1])
+    
     output_p = create_loggers(output_q)
     for worker in created_workers:
         worker.join()
