@@ -120,15 +120,25 @@ def get_cpucount():
 def statfile(fileloc):
     retvals = list()
     statoutput = os.stat(fileloc)
-    retvals.append(['permissions',str(oct(stat.S_IMODE(statoutput.st_mode)))])
-    retvals.append(['inode',str(statoutput.st_ino)])
-    retvals.append(['device_id',str(statoutput.st_dev)])
-    retvals.append(['uid',str(statoutput.st_uid)])
-    retvals.append(['gid',str(statoutput.st_gid)])
-    retvals.append(['size',str(statoutput.st_size)])
     retvals.append(['atime',str(statoutput.st_atime)])
     retvals.append(['mtime',str(statoutput.st_mtime)])
     retvals.append(['ctime',str(statoutput.st_ctime)])
+    retvals.append(['size',str(statoutput.st_size)])  
+    retvals.append(['uid',str(statoutput.st_uid)])
+    retvals.append(['gid',str(statoutput.st_gid)])      
+    retvals.append(['permissions',str(oct(stat.S_IMODE(statoutput.st_mode)))])
+    retvals.append(['inode',str(statoutput.st_ino)])
+    retvals.append(['device_id',str(statoutput.st_dev)])
+    #the not guaranteed ones
+    retvals.append(['st_blocks',getattr(statoutput,'st_blocks','-')])
+    retvals.append(['st_blksize',getattr(statoutput,'st_blksize','-')])
+    retvals.append(['st_rdev',getattr(statoutput,'st_rdev','-')])
+    retvals.append(['st_flags',getattr(statoutput,'st_flags','-')])
+    retvals.append(['st_gen',getattr(statoutput,'st_gen','-')])
+    retvals.append(['st_birthtime',getattr(statoutput,'st_birthtime','-')])
+    retvals.append(['st_ftype',getattr(statoutput,'st_ftype','-')])
+    retvals.append(['st_attrs',getattr(statoutput,'st_attrs','-')])
+    retvals.append(['st_obtype',getattr(statoutput,'st_obtype','-')])
     return retvals
     
 def processfile(filelist_q, output_q, algorithms):
@@ -145,16 +155,16 @@ def processfile(filelist_q, output_q, algorithms):
                 return
 
             meta = statfile(fileloc)                        
-            chunked_operations.doall(fileloc, float(meta[5][1]))
+            chunked_operations.doall(fileloc, float(meta[3][1]))
             hashes = chunked_operations.gethashes()  
             entropy = chunked_operations.getentropy()
             filemagic = chunked_operations.getmagic() #comment if no filemagic available
             output = list()
             output.extend(hashes)
+            output.append(['path',fileloc])
             output.extend(meta)
             output.append(entropy)
-            output.append(filemagic) #comment if no filemagic available
-            output.append(['path',fileloc])
+            output.append(filemagic) #comment if no filemagic available            
             output_q.put(output)
         except Empty:
             with GLOBAL_LOCK:
@@ -180,6 +190,11 @@ def create_workers(filelist_q, output_q, algorithms, amount=get_cpucount()):
         workers.append(p)
     return workers                  
 
+def create_loggers(output_q):
+    output_p = Process(target=queue_printer, name='output_p', args=(output_q,))
+    output_p.start()
+    return output_p
+    
 def walktree_populate_q(filelist_q, treestart):
     for root, dirs, files in os.walk(treestart):
         for f in files:
@@ -237,6 +252,7 @@ def get_args(myargs):
         print '{0} {1} {2}'.format(myargs[0], '<location>', '[hash_algo hash_algo hash_algo]')
         print 'Available algorithms: {0}'.format(' '.join(hashlib.algorithms))
         print 'Use ctrl-\ if you need a forced stop'
+        print 'Use - if you want to read from stdin'
         sys.exit()
     elif len(myargs) == 2:
         return [myargs[1], [DEFAULT_HASH_ALGO]]
@@ -255,8 +271,7 @@ if __name__ == "__main__":
         walktree_populate_q(filelist_q, args[0])
 
     created_workers = create_workers(filelist_q, output_q, args[1])
-    output_p = Process(target=queue_printer, name='output_p', args=(output_q,))
-    output_p.start()
+    output_p = create_loggers(output_q)
     for worker in created_workers:
         worker.join()
     output_q.put(None)
