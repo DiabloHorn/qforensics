@@ -246,6 +246,7 @@ def queue_printer(output_q):
 def readstdin_populate_q(filelist_q, stdin):
     for line in stdin:
         filelist_q.put(line.strip())
+    filelist_q.put(None)
 
 def get_args(myargs):
     if len(myargs) < 2:
