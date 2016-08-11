@@ -38,21 +38,18 @@ CHUNKSIZE = 1024*1024
 
 class file_chunked_operations:
     def __init__(self, algorithms):
-        self.hashworker = list()
-        self.results = list()
         self.algorithms = algorithms
-        self.byte_counts = [0] * 256
-        self.entropy = 0
-        
-        for algo in self.algorithms:            
-            self.hashworker.append(hashlib.new(algo))
     
     def doall(self, fileloc, filesize):
+        self.hashworker = list()
         self.byte_counts = [0] * 256
         self.fileloc = fileloc
         self.results = list()
         self.entropy = 0
         self.magic = '-'
+
+        for algo in self.algorithms:            
+            self.hashworker.append(hashlib.new(algo))
           
         for ictr, i in enumerate(self.chunked_reading()):
             if ictr == 0:
