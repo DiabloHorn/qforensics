@@ -258,7 +258,8 @@ def get_args(myargs):
         return [myargs[1], myargs[2:]]
 
 if __name__ == "__main__":
-    multiprocessing.log_to_stderr(logging.DEBUG)
+    #enable if you need debugging
+    #multiprocessing.log_to_stderr(logging.DEBUG)
     args = get_args(sys.argv)
     filelist_q = Queue(0)
     output_q = Queue(0)
