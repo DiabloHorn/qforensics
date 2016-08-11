@@ -2,11 +2,12 @@ Quick Forensics (qforensics)
  Collection of scripts for those situations when
  python seems to be the only thing that works
 
-fs_file_info.py
- sudo python fs_file_info.py /etc/ md5 sha1
+pmf.py
+ sudo python pmf.py /etc/ md5 sha1
+ find /etc/ -type f | python pmf.py - md5 sha1
  Retrieves the following information for each file:
   file hashes
   file stat output
-  file mimetype
+  file filetype
   file entropy 
   full filepath 
