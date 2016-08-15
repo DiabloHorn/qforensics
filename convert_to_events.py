@@ -33,9 +33,10 @@ def convert(csvr):
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         print "Convert pmf.py output to events"
-        print "{0} {1}".format(sys.argv[0], 'input-file')
+        print "{0} {1}".format(sys.argv[0], 'inputfile')
         print "Use '-' for stdin"
-        print "{0} input.csv"
+        print "{0} input.csv".format(sys.argv[0])
+        sys.exit()
     
     if sys.argv[1] == '-':
         reader = csv.reader(iter(sys.stdin.readline,''))

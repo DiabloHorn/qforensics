@@ -113,29 +113,62 @@ def get_cpucount():
         print >> sys.stderr, e
         return count
     return count    
+
+#input format: oct(statoutput.st_mode)[3:]   
+def octal2symbolic(octalperms):
+    fperms = list()
+    symperms = {'0':'---','1':'--x','2':'-w-','3':'-wx','4':'r--','5':'r-x','6':'rw-','7':'rwx'}
+    xperms = {'1':'t','2':'s','4':'s'}
+    
+    for i in octalperms[1:]:
+        fperms.append(list(symperms[i]))
+    
+    if octalperms[0] == '4':
+        if fperms[0][2] == '-':
+            fperms[0][2] = 'S'
+        else:
+            fperms[0][2] = 's'
+    elif octalperms[0] == '2':
+        if fperms[1][2] == '-':
+            fperms[1][2] = 'S'
+        else:
+            fperms[1][2] = 's'
+    elif octalperms[0] == '1':
+        if fperms[2][2] == '-':
+            fperms[2][2] = 'T'
+        else:
+            fperms[2][2] = 't'
+    
+    for ictr, i in enumerate(fperms):
+        fperms[ictr] = ''.join(i)
+    
+    #adjust this if you process more than files
+    return '-'+''.join(fperms)
+    
     
 def statfile(fileloc):
     retvals = list()
     statoutput = os.stat(fileloc)
-    retvals.append(['atime',str(statoutput.st_atime)])
-    retvals.append(['mtime',str(statoutput.st_mtime)])
-    retvals.append(['ctime',str(statoutput.st_ctime)])
+    retvals.append(['atime',str(int(statoutput.st_atime))])
+    retvals.append(['mtime',str(int(statoutput.st_mtime))])
+    retvals.append(['ctime',str(int(statoutput.st_ctime))])
     retvals.append(['size',str(statoutput.st_size)])  
     retvals.append(['uid',str(statoutput.st_uid)])
     retvals.append(['gid',str(statoutput.st_gid)])      
-    retvals.append(['permissions',str(oct(stat.S_IMODE(statoutput.st_mode)))])
+    retvals.append(['permissions',str(oct(statoutput.st_mode)[3:])])
+    retvals.append(['permissions_h', octal2symbolic(str(oct(statoutput.st_mode)[3:]))])
     retvals.append(['inode',str(statoutput.st_ino)])
     retvals.append(['device_id',str(statoutput.st_dev)])
     #the not guaranteed ones
-    retvals.append(['st_blocks',getattr(statoutput,'st_blocks','-')])
-    retvals.append(['st_blksize',getattr(statoutput,'st_blksize','-')])
-    retvals.append(['st_rdev',getattr(statoutput,'st_rdev','-')])
-    retvals.append(['st_flags',getattr(statoutput,'st_flags','-')])
-    retvals.append(['st_gen',getattr(statoutput,'st_gen','-')])
-    retvals.append(['st_birthtime',getattr(statoutput,'st_birthtime','-')])
-    retvals.append(['st_ftype',getattr(statoutput,'st_ftype','-')])
-    retvals.append(['st_attrs',getattr(statoutput,'st_attrs','-')])
-    retvals.append(['st_obtype',getattr(statoutput,'st_obtype','-')])
+    retvals.append(['st_blocks',getattr(statoutput,'st_blocks','0')])
+    retvals.append(['st_blksize',getattr(statoutput,'st_blksize','0')])
+    retvals.append(['st_rdev',getattr(statoutput,'st_rdev','0')])
+    retvals.append(['st_flags',getattr(statoutput,'st_flags','0')])
+    retvals.append(['st_gen',getattr(statoutput,'st_gen','0')])
+    retvals.append(['st_birthtime',str(int(getattr(statoutput,'st_birthtime','0')))])
+    retvals.append(['st_ftype',getattr(statoutput,'st_ftype','0')])
+    retvals.append(['st_attrs',getattr(statoutput,'st_attrs','0')])
+    retvals.append(['st_obtype',getattr(statoutput,'st_obtype','0')])
     return retvals
     
 def processfile(filelist_q, output_q, algorithms):
