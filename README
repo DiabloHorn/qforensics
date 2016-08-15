@@ -10,4 +10,46 @@ pmf.py
   file stat output
   file filetype
   file entropy 
-  full filepath 
+  full filepath
+
+convert_to_body.sh
+ converts the pmf.py output to the body file format
+ 
+convert_to_events.py
+ creates time based events which can be imported into other apps
+
+unixts2humants.py 
+ creates human readable timestamps from unix timestamps
+ 
+=== output examples
+Just some example output lines
+
+== pmf.py
+"md5","sha1","path","atime","mtime","ctime","size","uid","gid","permissions","permissions_h","inode","device_id","st_blocks","st_blksize","st_rdev","st_flags","st_gen","st_birthtime","st_ftype","st_attrs","st_obtype","entropy","type"
+"eb2488189c4e0458885f9ed82282e79a","0c9c4e5902a5602f1335f0887be12e270e9dc9da","mnt/README.diskdefines","1461191391","1461191315","1461191315","230","0","0","0444","-r--r--r--","1325","1792","1","2048","0","0","0","0","0","0","0","4.808771656298018","ASCII text"
+"d41d8cd98f00b204e9800998ecf8427e","da39a3ee5e6b4b0d3255bfef95601890afd80709","mnt/.disk/base_installable","1461191363","1461191316","1461191316","0","0","0","0444","-r--r--r--","1414","1792","0","2048","0","0","0","0","0","0","0","0","-"
+"09da98c6ddb1686651ef36408882ed47","7a032034e496bf55478269cfa48c3e2700710f2f","mnt/.disk/casper-uuid-generic","1461191363","1461191353","1461191353","37","0","0","0444","-r--r--r--","1418","1792","1","2048","0","0","0","0","0","0","0","3.871351338484979","ASCII text"
+"728cb968a88534e0c50a9d99621f13eb","0f851ce9d5a715e5562021680ffc71dacbf2e635","mnt/.disk/cd_type","1461191363","1461191316","1461191316","15","0","0","0444","-r--r--r--","1422","1792","1","2048","0","0","0","0","0","0","0","3.589898095464287","ASCII text"
+
+== convert_to_body.sh
+md5|path|inode|permissions_h|uid|gid|size|atime|mtime|ctime|st_birthtime
+eb2488189c4e0458885f9ed82282e79a|mnt/README.diskdefines|1325|-r--r--r--|0|0|230|1461191391|1461191315|1461191315|0
+d41d8cd98f00b204e9800998ecf8427e|mnt/.disk/base_installable|1414|-r--r--r--|0|0|0|1461191363|1461191316|1461191316|0
+09da98c6ddb1686651ef36408882ed47|mnt/.disk/casper-uuid-generic|1418|-r--r--r--|0|0|37|1461191363|1461191353|1461191353|0
+728cb968a88534e0c50a9d99621f13eb|mnt/.disk/cd_type|1422|-r--r--r--|0|0|15|1461191363|1461191316|1461191316|0
+11ca9735624b9dffc19b1291ba69e521|mnt/.disk/info|1426|-r--r--r--|0|0|60|1461191363|1461191315|1461191315|0
+418ec8fc8fb62d1761b3f25fa8d24e13|mnt/.disk/release_notes_url|1429|-r--r--r--|0|0|78|1461191363|1461191353|1461191353|0
+
+== convert_to_events.py
+"1461191391","atime","eb2488189c4e0458885f9ed82282e79a","0c9c4e5902a5602f1335f0887be12e270e9dc9da","mnt/README.diskdefines","1461191391","1461191315","1461191315","230","0","0","0444","-r--r--r--","1325","1792","1","2048","0","0","0","0","0","0","0","4.808771656298018","ASCII text"
+"1461191315","mtime","eb2488189c4e0458885f9ed82282e79a","0c9c4e5902a5602f1335f0887be12e270e9dc9da","mnt/README.diskdefines","1461191391","1461191315","1461191315","230","0","0","0444","-r--r--r--","1325","1792","1","2048","0","0","0","0","0","0","0","4.808771656298018","ASCII text"
+"1461191315","ctime","eb2488189c4e0458885f9ed82282e79a","0c9c4e5902a5602f1335f0887be12e270e9dc9da","mnt/README.diskdefines","1461191391","1461191315","1461191315","230","0","0","0444","-r--r--r--","1325","1792","1","2048","0","0","0","0","0","0","0","4.808771656298018","ASCII text"
+"0","crtime","eb2488189c4e0458885f9ed82282e79a","0c9c4e5902a5602f1335f0887be12e270e9dc9da","mnt/README.diskdefines","1461191391","1461191315","1461191315","230","0","0","0444","-r--r--r--","1325","1792","1","2048","0","0","0","0","0","0","0","4.808771656298018","ASCII text"
+
+== unixts2humants.py
+"md5","sha1","path","atime","mtime","ctime","size","uid","gid","permissions","permissions_h","inode","device_id","st_blocks","st_blksize","st_rdev","st_flags","st_gen","st_birthtime","st_ftype","st_attrs","st_obtype","entropy","type"
+"eb2488189c4e0458885f9ed82282e79a","0c9c4e5902a5602f1335f0887be12e270e9dc9da","mnt/README.diskdefines","2016-04-21T00:29:51","2016-04-21T00:28:35","2016-04-21T00:28:35","230","0","0","0444","-r--r--r--","1325","1792","1","2048","0","0","0","0","0","0","0","4.808771656298018","ASCII text"
+"d41d8cd98f00b204e9800998ecf8427e","da39a3ee5e6b4b0d3255bfef95601890afd80709","mnt/.disk/base_installable","2016-04-21T00:29:23","2016-04-21T00:28:36","2016-04-21T00:28:36","0","0","0","0444","-r--r--r--","1414","1792","0","2048","0","0","0","0","0","0","0","0","-"
+"09da98c6ddb1686651ef36408882ed47","7a032034e496bf55478269cfa48c3e2700710f2f","mnt/.disk/casper-uuid-generic","2016-04-21T00:29:23","2016-04-21T00:29:13","2016-04-21T00:29:13","37","0","0","0444","-r--r--r--","1418","1792","1","2048","0","0","0","0","0","0","0","3.871351338484979","ASCII text"
+"728cb968a88534e0c50a9d99621f13eb","0f851ce9d5a715e5562021680ffc71dacbf2e635","mnt/.disk/cd_type","2016-04-21T00:29:23","2016-04-21T00:28:36","2016-04-21T00:28:36","15","0","0","0444","-r--r--r--","1422","1792","1","2048","0","0","0","0","0","0","0","3.589898095464287","ASCII text"
+

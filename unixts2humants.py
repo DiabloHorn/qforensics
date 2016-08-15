@@ -11,7 +11,6 @@ import datetime
 def convert(csvr,columns):
     csvstdout = csv.writer(sys.stdout, quoting=csv.QUOTE_ALL)
     for rowctr,row in enumerate(csvr):
-        timelist = list()
         if rowctr == 0:
             csvstdout.writerow(row)
             continue
