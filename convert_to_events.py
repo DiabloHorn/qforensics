@@ -16,12 +16,13 @@ def convert(csvr):
             mtime = row.index('mtime')
             ctime = row.index('ctime')
             crtime = row.index('st_birthtime')
+            csvstdout.writerow(['timestamp','ts_type'] + row)
             continue
 
         timelist.append([row[atime],'atime'])
         timelist.append([row[mtime],'mtime'])
         timelist.append([row[ctime],'ctime'])
-        if row[crtime] is not '-':
+        if row[crtime] is not '0':
             timelist.append([row[crtime],'crtime'])
         
         for i in timelist:
